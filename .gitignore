@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+
+# Course docs
+*.docx
+*.backup.docx
+
+# Experiment logs
+logs/
+
+# Results are tracked but not committed per program.md rules
+results.tsv
+
+# Claude settings
+.claude/
