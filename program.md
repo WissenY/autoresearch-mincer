@@ -41,16 +41,14 @@ This separation follows autoresearch: `prepare.py` is the fixed infrastructure (
 
 ## The Experiment Loop
 
-### Initial Setup (run once)
+### Initial Setup (run once — ends at Checkpoint 1)
 
 1. Verify the Python environment has `numpy`, `pandas`, `statsmodels`.
 2. Run baseline: `python analysis.py`
 3. Read the output printed by `evaluate_specification()`.
-4. Create `results.tsv` with header row:
-   ```
-   commit	spec_score	core_sign	core_sig	adj_r2	aic	diagnostic_fails	status	description
-   ```
+4. Create `results.tsv` with header row (see Logging Results section below).
 5. Record the baseline run as the first row, status = `keep`.
+6. **IMMEDIATELY trigger Checkpoint 1** — do NOT proceed to the experiment loop until the human confirms.
 
 ### Per-Iteration Loop
 
@@ -140,9 +138,11 @@ Example:
 ```
 a1b2c3d	4	positive	0.001	0.321	1234.5	none	keep	add experience squared + HC3 robust SE
 ```
+**Step 9 — Checkpoint gate**
 
-**Step 9 — Loop**
-Go to Step 1. **NEVER STOP.** The human may be asleep. Continue until manually interrupted.
+Before looping back to Step 1, check if any checkpoint condition has been triggered (see Human Stop-and-Check Points below). If YES → **PAUSE immediately** and output the checkpoint header. Do NOT start a new iteration until the human confirms "proceed" or gives new instructions.
+
+If no checkpoint is triggered → go to Step 1 and continue.
 
 ---
 
@@ -197,30 +197,86 @@ In empirical research, simpler is better (Occam's razor). The scoring system rew
 
 ## Human Stop-and-Check Points
 
-While the loop is designed to run autonomously, three critical points require human review:
+The agent does NOT run fully unattended. At three critical checkpoints, the agent MUST pause and present a structured status report to the human. The agent must NOT resume until the human explicitly responds "proceed" or provides new direction.
 
-### Checkpoint 1: After Baseline Run
+**Protocol for ALL checkpoints**: When a checkpoint is triggered, the agent MUST:
+1. Print `=== CHECKPOINT N TRIGGERED ===` (where N = 1, 2, or 3)
+2. Present the review items listed below in a structured format
+3. Explicitly ask: `Proceed? Or redirect?`
+4. Wait for human response before any further action
 
-- **What to review**: The baseline model specification and its diagnostic profile.
-- **Success criterion**: Baseline runs without error; diagnostic output is interpretable.
-- **If fails**: The data or environment is broken. Fix before proceeding.
+---
 
-### Checkpoint 2: When Score Reaches 4/5
+### Checkpoint 1: After Baseline Run (Trigger: iteration count == 1)
 
-- **What to review**: The best model so far. Does the specification make theoretical sense? Is there a plausible economic story behind the variables?
-- **Success criterion**: The model is both statistically sound AND economically interpretable.
-- **If fails**: The agent may have found a spurious specification. Redirect by adding theoretical constraints to the change categories.
+**When**: Immediately after the first experiment (baseline) completes.
 
-### Checkpoint 3: After 5 Iterations Without Improvement
+**What to review**:
+1. The baseline model's `spec_score` and full diagnostic breakdown (from `run.log`).
+2. Verify that `core_sign = positive` AND `core_sig < 0.05` — the baseline Mincer equation must confirm returns to education.
+3. Verify all diagnostic tests ran without errors (BP test, VIF, RESET all produced numeric output).
+4. Confirm `n_params` is between 3 and 10 (baseline should be reasonably parsimonious).
 
-- **What to review**: The full log of attempts. Is the agent stuck in a local optimum? Are all attempts in the same change category?
-- **Success criterion**: The agent's next attempt should explore a qualitatively different direction.
-- **If fails**: Manually suggest a new change category to the agent via program.md update.
+**Success criterion**: ALL of the above pass.
+
+**Agent action on success**: Output `=== CHECKPOINT 1 PASSED === Baseline confirmed. Proceeding to experiment loop.`
+
+**Agent action on failure**: Output `=== CHECKPOINT 1 FAILED ===` with a specific description of what failed. Do NOT proceed. The human must fix the environment or adjust the baseline specification before re-running.
+
+**Why this matters**: If the baseline is broken, every subsequent experiment is meaningless. This is the "smoke test" for the entire research setup.
+
+---
+
+### Checkpoint 2: When spec_score Reaches 4/5 (Trigger: current score == 4 or 5, AND > previous best)
+
+**When**: Agent achieves a spec_score of 4 or 5 that exceeds the previous best score.
+
+**What to review**:
+1. The full model specification (list all independent variables and their coefficients/significance).
+2. The diagnostic profile: Did diagnostics pass? If VIF was the failure, is it due to polynomial terms (acceptable) or genuinely problematic collinearity?
+3. **Economic interpretability audit**: 
+   - Does the sign of each coefficient make theoretical sense?
+   - Why did this change improve the score — what's the economic mechanism?
+   - Is there a plausible story, or did we just find a spurious correlation?
+4. Whether the improvement comes from adding substance vs. adding noise (check if adj-R² improvement is > 0.01 or marginal).
+
+**Success criterion**: The specification makes statistical AND economic sense.
+
+**Agent action on success**: Output `=== CHECKPOINT 2 PASSED ===` with a one-paragraph economic interpretation of the model. Ask human to confirm before continuing.
+
+**Agent action on failure** (model is statistically good but economically implausible):
+Output `=== CHECKPOINT 2 FAILED === Specification achieves high score but economic interpretation is questionable:` followed by the specific concern. Propose one alternative hypothesis to test. Wait for human direction.
+
+**Why this matters**: In economics, statistical fit without theoretical coherence is worthless. This checkpoint prevents the agent from optimizing toward a spurious "best" model.
+
+---
+
+### Checkpoint 3: After 5 Consecutive Iterations Without Score Improvement (Trigger: score ≤ previous_best for 5 consecutive iterations)
+
+**When**: The agent has discarded 5 consecutive experiments (or 5 experiments failed to improve the best score).
+
+**What to review**:
+1. List the last 5 experiments with their descriptions, scores, and discard reasons.
+2. Category analysis of failed attempts: Were all attempts in the same category (e.g., all "add a variable")? Or did the agent try diverse approaches?
+3. Current best model and its remaining weaknesses (which dimensions score 0?).
+4. Propose a **qualitatively different search direction** — e.g., if all attempts were adding variables, propose functional form changes; if all were OLS tweaks, propose WLS or robust SE.
+
+**Success criterion**: Human reviews the log and confirms the proposed new direction.
+
+**Agent action**: Output `=== CHECKPOINT 3 TRIGGERED === 5 iterations without improvement.` then present the analysis above. Explicitly ask: `Suggested new direction: [proposal]. Proceed? Or redirect?`
+
+**Agent action on failure** (human rejects the proposed direction): Accept the human's alternative direction. Record it. Restart loop with the new constraint.
+
+**Why this matters**: Prevents the agent from getting stuck in a local optimum. Forces a "step back and rethink" moment — exactly what a human researcher would do when hitting a wall.
+
+---
 
 ### When is full autonomy appropriate vs. human-in-the-loop?
 
-- **Full autonomy** (like autoresearch): When the evaluation metric is objective, the search space is well-defined, and the cost of a wrong answer is low.
-- **Human-in-the-loop**: When the domain requires theoretical interpretation (like economics), when priors matter, and when "best" involves judgment calls.
+- **Full autonomy** (like autoresearch): When the evaluation metric is fully objective, the search space is a closed engineering system, and "better" has no ambiguity (e.g., `val_bpb ↓` always means improvement).
+- **Human-in-the-loop** (this workflow): When the domain requires theoretical interpretation (economics, management science), when priors and domain knowledge constrain the search, and when "better" is multi-dimensional with inherent trade-offs that require judgment. 
+
+In our case, the agent handles the statistical optimization (running regressions, computing diagnostics, ranking by score), while the human retains authority over economic interpretation and research direction — a division of labor that mirrors how a principal investigator works with a research assistant.
 
 ---
 
