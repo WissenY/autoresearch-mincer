@@ -10,3 +10,4 @@ c62dfcd	4	1	0	1	1	1	0.0740	0.0036	0.0000	0.140411	NA	0.3688	0.8956	5.13	HC3	OLS	
 cd7c4dc	4	1	0	1	1	1	0.0669	0.0035	0.0000	0.123669	NA	0.1585	NA	5.11	HC3	OLS	7	2954	NA	0.0721	0.0508	0.0903	discard	drop married on trimmed: clean diagnostics but CV-MSE +3.2% (married has real signal)
 faff800	5	1	1	1	1	1	0.0569	0.0033	0.0000	0.107336	NA	0.0539	NA	5.68	HC3	OLS	8	2857	NA	0.0721	0.0508	0.0903	keep	2.5% trim: CV-MSE 0.1073 best yet (-21% vs baseline). Caveat: educ drifts to 0.057 (lower edge of multiverse band)
 4e8ead7	3	0	1	0	1	1	0.0510	0.0030	0.0000	0.093033	NA	0.0994	NA	5.64	HC3	OLS	8	2715	NA	0.0721	0.0508	0.0903	discard	5% trim: CV-MSE 0.093 best ever BUT educ=0.051 at multiverse 5%-edge → ident=0, hard-rule discard
+3c0d32a	5	1	1	1	1	1	0.0565	0.0033	0.0000	0.107331	NA	0.0703	NA	9.82	HC3	OLS	9	2857	NA	0.0721	0.0508	0.0903	discard	add momdad14: 5/5 but parsimony tiebreaker (9 params vs 8, CV-MSE tied at 0.107) → discard
