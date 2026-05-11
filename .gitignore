@@ -9,9 +9,10 @@ __pycache__/
 *.docx
 *.backup.docx
 
-# Working scratch logs only — keep spec_curve.csv by exception
+# Working scratch logs only — keep spec_curve.csv and execution-log PNGs by exception
 logs/*
 !logs/spec_curve.csv
+!logs/*.png
 
 # Claude settings
 .claude/
