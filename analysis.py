@@ -58,7 +58,7 @@ df = load_card_data()
 # BASELINE: classic Mincer log-wage equation, OLS with HC3 SE,
 # demographic controls, on the full sample.
 
-controls = ["black", "south", "smsa"]  # drop married — parsimony retry on trimmed sample
+controls = ["black", "south", "smsa", "married"]
 sample = df.dropna(subset=["lwage", "educ", "exper"] + controls).copy()
 # Trim top and bottom 1% of lwage to limit influence of wage-outliers
 lo, hi = sample["lwage"].quantile(0.01), sample["lwage"].quantile(0.99)
