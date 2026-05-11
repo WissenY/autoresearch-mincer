@@ -187,10 +187,14 @@ def _build_design(df: pd.DataFrame, controls: list[str]) -> tuple[np.ndarray, np
 
 
 def specification_curve(df: pd.DataFrame) -> dict:
-    """Run a small multiverse of plausible specifications and return the
-    distribution of educ coefficients. Used both for scoring and reporting.
+    """OLS multiverse — distribution of educ coefficients across plausible
+    OLS specifications. Used as the reference set when the iteration is OLS.
 
-    The multiverse is defined HERE (read-only) so the agent cannot game it.
+    Mirrored by `iv_specification_curve` for IV iterations: see v2 design note
+    in CHANGES.md. The IV LATE on compliers is *expected* to exceed the OLS
+    distribution (Card 1999), so penalising IV against the OLS curve is a
+    design bug. Use the matching reference set in `evaluate_specification`.
+
     Each spec varies one or more of:
       - control set (none / demographics / +region / +ability)
       - sample restriction (full / non-missing-IQ / dropped top-1% wage)
@@ -272,6 +276,118 @@ def specification_curve(df: pd.DataFrame) -> dict:
         "ci_5_95": (float(np.quantile(coefs, 0.05)), float(np.quantile(coefs, 0.95))),
         "n_specs": int(len(coefs)),
         "share_significant": float(np.mean(np.array([r["educ_p"] for r in rows]) < 0.05)),
+    }
+
+
+# ---------------------------------------------------------------------------
+# IV multiverse (v2 design — see CHANGES.md "dual-multiverse fix")
+# ---------------------------------------------------------------------------
+def iv_specification_curve(
+    df: pd.DataFrame,
+    *,
+    instruments: tuple[str, ...] = ("nearc4",),
+) -> dict:
+    """IV2SLS multiverse — distribution of educ LATE estimates across plausible
+    IV specifications using Card-style near-college instruments.
+
+    Parallels `specification_curve` but uses IV2SLS with `nearc4` (and optionally
+    `nearc2`, `motheduc`, `fatheduc`) as instruments. The OLS multiverse is the
+    wrong reference set for an IV LATE on compliers (Card 1999): IV is expected
+    to exceed OLS when the marginal-schooling group has higher returns.
+
+    Sweeps control set × sample restriction × instrument choice (single or
+    over-identified). Cov type is fixed to classical IV (HC for IV2SLS is not
+    universally implemented in statsmodels' sandbox version).
+    """
+    rows = []
+    demo = ["black", "south", "smsa"]
+    region_dummies = [f"reg66{i}" for i in range(2, 10)]
+    ability_proxies = ["IQ", "KWW"]
+
+    control_menus = [
+        demo,
+        demo + ["married"],
+        demo + region_dummies,
+        demo + region_dummies + ["married"],
+        demo + ability_proxies,
+        demo + ability_proxies + ["married"],
+    ]
+
+    sample_restrictions = [
+        ("full", lambda d: d),
+        ("trim_top1_wage", lambda d: d[d["lwage"] <= d["lwage"].quantile(0.99)]),
+        ("trim_top_bot_1", lambda d: d[(d["lwage"] >= d["lwage"].quantile(0.01))
+                                     & (d["lwage"] <= d["lwage"].quantile(0.99))]),
+        ("trim_top_bot_25", lambda d: d[(d["lwage"] >= d["lwage"].quantile(0.025))
+                                      & (d["lwage"] <= d["lwage"].quantile(0.975))]),
+    ]
+
+    instrument_menus = [
+        ("nearc4", ["nearc4"]),
+        ("nearc2", ["nearc2"]),
+        ("nearc4+nearc2", ["nearc4", "nearc2"]),
+    ]
+
+    for controls in control_menus:
+        for sample_name, restrict in sample_restrictions:
+            for inst_name, inst_cols in instrument_menus:
+                try:
+                    sub = restrict(df).dropna(
+                        subset=["lwage", "educ", "exper"] + controls + inst_cols
+                    ).copy()
+                    if len(sub) < 200:
+                        continue
+                    sub["expersq"] = sub["exper"] ** 2
+                    exog_cols = ["educ", "exper", "expersq"] + [
+                        c for c in controls if c not in {"exper", "expersq"}
+                    ]
+                    y = sub["lwage"].astype(float).values
+                    X = sm.add_constant(sub[exog_cols].astype(float).values)
+                    # Instrument matrix: constant + exogenous controls + instruments,
+                    # replacing the educ column (index 1) with the instruments.
+                    exog_no_educ = ["exper", "expersq"] + [
+                        c for c in controls if c not in {"exper", "expersq"}
+                    ]
+                    Z_inner = sub[exog_no_educ + inst_cols].astype(float).values
+                    Z = sm.add_constant(Z_inner)
+                    iv_fit = IV2SLS(endog=y, exog=X, instrument=Z).fit()
+                    # First-stage F on the excluded instruments
+                    fs_F = first_stage_f(
+                        sub["educ"].astype(float).values,
+                        sub[inst_cols].astype(float).values,
+                        sm.add_constant(sub[exog_no_educ].astype(float).values),
+                    )
+                    rows.append({
+                        "controls": ",".join(controls),
+                        "sample": sample_name,
+                        "instrument": inst_name,
+                        "n": len(y),
+                        "educ_coef": float(iv_fit.params[1]),
+                        "educ_se": float(iv_fit.bse[1]),
+                        "first_stage_F": float(fs_F),
+                    })
+                except Exception:
+                    continue
+
+    if not rows:
+        return {
+            "coefs": np.array([]),
+            "median": float("nan"),
+            "iqr": (float("nan"), float("nan")),
+            "ci_5_95": (float("nan"), float("nan")),
+            "n_specs": 0,
+        }
+
+    coefs = np.array([r["educ_coef"] for r in rows])
+    out_dir = Path(__file__).parent / "logs"
+    out_dir.mkdir(exist_ok=True)
+    pd.DataFrame(rows).to_csv(out_dir / "iv_spec_curve.csv", index=False)
+    return {
+        "coefs": coefs,
+        "median": float(np.median(coefs)),
+        "iqr": (float(np.quantile(coefs, 0.25)), float(np.quantile(coefs, 0.75))),
+        "ci_5_95": (float(np.quantile(coefs, 0.05)), float(np.quantile(coefs, 0.95))),
+        "n_specs": int(len(coefs)),
     }
 
 
@@ -371,6 +487,7 @@ def evaluate_specification(
     iv_info: dict | None = None,
     previous_best_cv: float | None = None,
     spec_curve: dict | None = None,
+    iv_spec_curve: dict | None = None,
     history_signs: list[str] | None = None,
 ) -> dict:
     """Compute the 5-dimension specification score for a fitted model.
@@ -460,11 +577,22 @@ def evaluate_specification(
     high_vif = max_v >= 15
 
     # ------ Spec-curve consistency -----------------------------------------
-    if spec_curve is None:
-        spec_curve = specification_curve(df)
-    sc_median = spec_curve["median"]
+    # v2: route IV iterations to the IV multiverse, OLS iterations to the OLS
+    # multiverse. The OLS curve is the wrong reference for an IV LATE
+    # (Card 1999). See CHANGES.md → "dual-multiverse fix".
+    if is_iv:
+        if iv_spec_curve is None:
+            iv_spec_curve = iv_specification_curve(df)
+        active_curve = iv_spec_curve
+        curve_label = "iv_multiverse"
+    else:
+        if spec_curve is None:
+            spec_curve = specification_curve(df)
+        active_curve = spec_curve
+        curve_label = "ols_multiverse"
+    sc_median = active_curve["median"]
     sc_lo, sc_hi = sc_median * 0.75, sc_median * 1.25
-    sc_consistent = (sc_lo <= educ_coef <= sc_hi)
+    sc_consistent = (sc_lo <= educ_coef <= sc_hi) if np.isfinite(sc_median) else False
 
     # ------ Dimension 1: Identification ------------------------------------
     fs_f = float("nan")
@@ -498,8 +626,8 @@ def evaluate_specification(
     # ------ Dimension 3: Specification stability ---------------------------
     stab_score = 1 if sc_consistent else 0
     stab_reason = (
-        f"educ={educ_coef:.4f}, multiverse median={sc_median:.4f}, "
-        f"5/95={spec_curve['ci_5_95'][0]:.4f}/{spec_curve['ci_5_95'][1]:.4f}"
+        f"educ={educ_coef:.4f}, {curve_label} median={sc_median:.4f}, "
+        f"5/95={active_curve['ci_5_95'][0]:.4f}/{active_curve['ci_5_95'][1]:.4f}"
     )
 
     # ------ Dimension 4: Diagnostic soundness ------------------------------
@@ -527,8 +655,8 @@ def evaluate_specification(
     print(f"  prev_best_cv:    {previous_best_cv if previous_best_cv is not None else 'NA'}")
     print(f"spec_stability:    {stab_score}")
     print(f"  educ_coef:       {educ_coef:.4f}")
-    print(f"  multiverse_med:  {sc_median:.4f}")
-    print(f"  multiverse_5_95: {spec_curve['ci_5_95'][0]:.4f}/{spec_curve['ci_5_95'][1]:.4f}")
+    print(f"  multiverse_med:  {sc_median:.4f}  ({curve_label})")
+    print(f"  multiverse_5_95: {active_curve['ci_5_95'][0]:.4f}/{active_curve['ci_5_95'][1]:.4f}")
     print(f"diagnostics:       {diag_score}")
     print(f"  bp_p:            {bp_p:.4f}" if bp_p == bp_p else f"  bp_p:            NA")
     print(f"  reset_p:         {reset_p:.4f}" if reset_p == reset_p else f"  reset_p:         NA")
@@ -567,7 +695,8 @@ def evaluate_specification(
         "bic": bic,
         "adj_r2": adj_r2,
         "multiverse_median": sc_median,
-        "multiverse_5": spec_curve["ci_5_95"][0],
-        "multiverse_95": spec_curve["ci_5_95"][1],
-        "spec_curve_n": spec_curve["n_specs"],
+        "multiverse_5": active_curve["ci_5_95"][0],
+        "multiverse_95": active_curve["ci_5_95"][1],
+        "spec_curve_n": active_curve["n_specs"],
+        "multiverse_used": curve_label,
     }

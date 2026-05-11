@@ -1,0 +1,144 @@
+---
+title: "Returns to Schooling — Replication of the iter09 Kept Best"
+subtitle: "Card 1995 NLSYM; OLS with HC3 SE, top/bottom 2.5% lwage trimmed"
+author: "autoresearch-mincer"
+format:
+  html:
+    code-fold: false
+    toc: true
+  pdf:
+    documentclass: article
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+# Setup
+
+```{r setup}
+library(tidyverse)
+library(fixest)        # feols, etable
+library(broom)
+library(modelsummary)  # for publication-ready tables
+library(sandwich)
+library(lmtest)
+library(car)           # vif
+library(estimatr)      # iv_robust
+
+# Card 1995 NLSYM extract — ships with the repository.
+card <- read_csv("../data/card.csv", show_col_types = FALSE) |>
+  filter(!is.na(lwage), !is.na(educ), !is.na(exper),
+         !is.na(black), !is.na(south), !is.na(smsa), !is.na(married))
+
+cat("Loaded", nrow(card), "observations.\n")
+```
+
+# Iter09 — Kept Best
+
+Trim top and bottom 2.5% of `lwage`; OLS with HC3.
+
+```{r iter09}
+p025 <- quantile(card$lwage, 0.025)
+p975 <- quantile(card$lwage, 0.975)
+sample09 <- card |>
+  filter(lwage >= p025, lwage <= p975) |>
+  mutate(exper_c   = exper - mean(exper),
+         expersq_c = exper_c^2)
+cat("Sample size after trim:", nrow(sample09), "\n")
+
+fit09 <- feols(lwage ~ educ + exper_c + expersq_c + black + south + smsa + married,
+               data = sample09, vcov = "hetero")
+summary(fit09)
+```
+
+Expected: `educ` $\approx 0.0569$, SE $\approx 0.0033$, $n \approx 2857$.
+
+# Anchor specifications
+
+```{r anchors}
+fits <- list(
+  "baseline (full)" = feols(
+      lwage ~ educ + exper_c + expersq_c + black + south + smsa + married,
+      data = card |> mutate(exper_c = exper - mean(exper),
+                            expersq_c = (exper - mean(exper))^2),
+      vcov = "hetero"),
+  "iter06 (trim 1%)" = feols(
+      lwage ~ educ + exper_c + expersq_c + black + south + smsa + married,
+      data = card |>
+        filter(lwage >= quantile(lwage, 0.01), lwage <= quantile(lwage, 0.99)) |>
+        mutate(exper_c = exper - mean(exper),
+               expersq_c = (exper - mean(exper))^2),
+      vcov = "hetero"),
+  "iter09 (trim 2.5%, kept best)" = fit09,
+  "iter10 (trim 5%, hard-rule discard)" = feols(
+      lwage ~ educ + exper_c + expersq_c + black + south + smsa + married,
+      data = card |>
+        filter(lwage >= quantile(lwage, 0.05), lwage <= quantile(lwage, 0.95)) |>
+        mutate(exper_c = exper - mean(exper),
+               expersq_c = (exper - mean(exper))^2),
+      vcov = "hetero")
+)
+
+etable(fits, signif.code = c("***" = 0.01, "**" = 0.05, "*" = 0.1),
+       fitstat = ~ n + ar2)
+```
+
+# IV path — iter01
+
+```{r iv01}
+card_iv <- card |>
+  filter(!is.na(nearc4)) |>
+  mutate(exper_c   = exper - mean(exper),
+         expersq_c = exper_c^2)
+
+iv01 <- feols(lwage ~ exper_c + expersq_c + black + south + smsa + married |
+                educ ~ nearc4,
+              data = card_iv, vcov = "iid")
+summary(iv01)
+
+# First-stage F (Stock-Yogo)
+first_stage <- feols(educ ~ exper_c + expersq_c + black + south + smsa + married + nearc4,
+                      data = card_iv)
+fitstat(first_stage, "ivf")
+```
+
+# Diagnostics for iter09
+
+```{r diag}
+fit09_lm <- lm(lwage ~ educ + exper_c + expersq_c + black + south + smsa + married,
+               data = sample09)
+
+# Breusch-Pagan
+bp <- bptest(fit09_lm)
+print(bp)
+
+# Ramsey RESET
+reset <- resettest(fit09_lm, power = 2:3, type = "fitted")
+print(reset)
+
+# Max VIF (on non-constant regressors)
+v <- vif(fit09_lm)
+cat("Max VIF:", round(max(v), 3), "\n")
+```
+
+# Publication-ready table
+
+```{r table}
+modelsummary(
+  fits,
+  stars = c('*' = .1, '**' = .05, '***' = .01),
+  coef_map = c(
+    "(Intercept)" = "Constant",
+    "educ" = "Years of schooling",
+    "exper_c" = "Experience (centered)",
+    "expersq_c" = "Experience² (centered)",
+    "black" = "Black",
+    "south" = "South",
+    "smsa" = "SMSA",
+    "married" = "Married"
+  ),
+  gof_omit = "Adj|R2 W|AIC|BIC|RMSE|Log",
+  notes = "HC3 heteroskedasticity-robust standard errors in parentheses."
+)
+```
