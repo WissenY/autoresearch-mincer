@@ -84,26 +84,6 @@ IV path (smoke-tested): switch to `IV2SLS` with `nearc4` →
 
 ---
 
-## Key Design Decisions
-
-### 1. Why OLS as baseline instead of IV
-
-OLS baseline establishes the multiverse "floor." The agent **should** try IV in subsequent iterations — that's what the identification dimension rewards. Making IV the baseline would penalize OLS unfairly (IV first-stage F is undefined for OLS).
-
-### 2. Why "educ significantly positive" was removed as a reward
-
-Rewarding "significantly positive" bakes specification mining directly into the reward function. Card's (1995) central finding is precisely that IV > OLS — OLS estimates of the return to education are biased *downward* by unobserved ability. Let the data speak; don't let the reward function speak for it.
-
-### 3. Why `results.tsv` is tracked in git
-
-Experiment history is a non-reconstructible asset — the same code run again may produce different results due to dependency updates. Version-controlling the experiment log is a foundational requirement of reproducibility.
-
-### 4. Why the multiverse is fixed in `prepare.py`
-
-If the agent defined its own multiverse, it could shrink the multiverse range to make its specification appear "stable" by construction. Fixing the multiverse in read-only `prepare.py` prevents the agent from gaming the stability metric.
-
----
-
 ## Literature
 
 - **Mincer (1974)** — *Schooling, Experience, and Earnings*
