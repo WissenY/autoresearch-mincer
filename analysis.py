@@ -60,8 +60,8 @@ df = load_card_data()
 
 controls = ["black", "south", "smsa", "married"]
 sample = df.dropna(subset=["lwage", "educ", "exper"] + controls).copy()
-# Trim top and bottom 5% of lwage (aggressive trim — test slope-bias / stability trade-off)
-lo, hi = sample["lwage"].quantile(0.05), sample["lwage"].quantile(0.95)
+# Trim top and bottom 2.5% of lwage (tighter than 1% trim — outlier sensitivity test)
+lo, hi = sample["lwage"].quantile(0.025), sample["lwage"].quantile(0.975)
 sample = sample[(sample["lwage"] >= lo) & (sample["lwage"] <= hi)].copy()
 # Center experience before squaring — removes the mechanical near-collinearity
 # between `exper` and `exper²` that otherwise inflates VIF without economic
