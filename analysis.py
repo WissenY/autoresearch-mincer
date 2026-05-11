@@ -58,7 +58,7 @@ df = load_card_data()
 # BASELINE: classic Mincer log-wage equation, OLS with HC3 SE,
 # demographic controls, on the full sample.
 
-controls = ["black", "south", "smsa", "married"]
+controls = ["black", "south", "smsa", "married", "IQ", "KWW"]
 sample = df.dropna(subset=["lwage", "educ", "exper"] + controls).copy()
 # Center experience before squaring — removes the mechanical near-collinearity
 # between `exper` and `exper²` that otherwise inflates VIF without economic
