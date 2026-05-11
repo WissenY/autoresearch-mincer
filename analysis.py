@@ -59,31 +59,41 @@ df = load_card_data()
 # demographic controls, on the full sample.
 
 controls = ["black", "south", "smsa", "married"]
-sample = df.dropna(subset=["lwage", "educ", "exper", "nearc4"] + controls).copy()
+sample = df.dropna(subset=["lwage", "educ", "exper"] + controls).copy()
+# Center experience before squaring — removes the mechanical near-collinearity
+# between `exper` and `exper²` that otherwise inflates VIF without economic
+# meaning (Wooldridge 2019, ch. 6.2).
 exper_mean = sample["exper"].mean()
 sample["exper_c"] = sample["exper"] - exper_mean
 sample["expersq_c"] = sample["exper_c"] ** 2
 
+# educ is placed FIRST after the constant so educ_index = 1 (the prepare.py
+# evaluation function relies on this convention).
 regressors = ["educ", "exper_c", "expersq_c"] + controls
 X = sm.add_constant(sample[regressors].astype(float).values)
 y = sample["lwage"].astype(float).values
 
-# Card (1995) IV strategy: nearc4 (lived near a 4-year college at 14) as
-# instrument for endogenous educ. Exclusion restriction: proximity affects
-# wages only through schooling.
-Z = sample[["nearc4"]].astype(float).values
-exog_controls = sm.add_constant(
-    sample[["exper_c", "expersq_c"] + controls].astype(float).values
-)
-instrument_matrix = np.column_stack([exog_controls, Z])
-fit = IV2SLS(endog=y, exog=X, instrument=instrument_matrix).fit()
-cov_type = "iv2sls-classical"
+cov_type = "HC3"           # diagnostic-aware: heteroskedasticity is expected
+fit = sm.OLS(y, X).fit(cov_type=cov_type)
 
-iv_info = {
-    "endog": sample["educ"].astype(float).values,
-    "instruments": Z,
-    "controls": exog_controls,
-}
+# ----- IV info: leave None for OLS, populate for IV2SLS specifications -----
+iv_info: dict | None = None
+# Example (uncomment to use Card's near-4-year-college as IV for educ):
+# Z = sample[["nearc4"]].astype(float).values
+# controls_for_first_stage = sm.add_constant(
+#     sample[["exper", "expersq"] + controls].astype(float).values
+# )
+# iv_info = {
+#     "endog": sample["educ"].astype(float).values,
+#     "instruments": Z,
+#     "controls": controls_for_first_stage,
+# }
+# fit = IV2SLS(
+#     endog=y,
+#     exog=X,
+#     instrument=np.column_stack([controls_for_first_stage, Z]),
+# ).fit()
+# cov_type = "iv2sls-classical"
 
 # ---------------------------------------------------------------------------
 # MODEL SPECIFICATION — Edit ABOVE THIS LINE
