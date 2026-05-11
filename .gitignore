@@ -9,11 +9,12 @@ __pycache__/
 *.docx
 *.backup.docx
 
-# Experiment logs
-logs/
-
-# Results are tracked but not committed per program.md rules
-results.tsv
+# Working scratch logs only — keep spec_curve.csv by exception
+logs/*
+!logs/spec_curve.csv
 
 # Claude settings
 .claude/
+
+# NOTE: results.tsv IS tracked in git (Karpathy autoresearch convention).
+# The full experiment history is the research artifact.

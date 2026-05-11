@@ -1,0 +1,2 @@
+commit	spec_score	identification	oos_fit	spec_stability	diagnostics	parsimony	educ_coef	educ_se	educ_p	cv_mse	first_stage_F	bp_p	reset_p	max_vif	cov_type	estimator	n_params	n_obs	bic	multiverse_median	multiverse_5	multiverse_95	status	description
+baseline	5	1	1	1	1	1	0.0715	0.0036	0.0000	0.135772	NA	0.0055	0.9047	5.69	HC3	OLS	8	3003	2575.93	0.0721	0.0508	0.0903	keep	Card 1995 baseline: log(wage) ~ educ + exper_c + exper_c² + black + south + smsa + married, OLS, HC3
