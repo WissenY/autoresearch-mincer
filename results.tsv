@@ -8,3 +8,4 @@ c62dfcd	4	1	0	1	1	1	0.0740	0.0036	0.0000	0.140411	NA	0.3688	0.8956	5.13	HC3	OLS	
 9020b39	5	1	1	1	1	1	0.0647	0.0035	0.0000	0.119809	NA	0.0083	0.4936	5.68	HC3	OLS	8	2947	NA	0.0721	0.0508	0.0903	keep	trim top/bottom 1% lwage: CV-MSE 0.1198 (-12% vs baseline), all dimensions 5/5, new running best
 3ca9173	4	1	0	1	1	1	0.0665	0.0040	0.0000	0.122148	NA	0.0211	NA	5.62	HC3	OLS	8	2325	NA	0.0721	0.0508	0.0903	discard	momdad14==1 + 1% trim: CV-MSE 0.122 vs best 0.120 (1.9% worse, > 0.5% threshold)
 cd7c4dc	4	1	0	1	1	1	0.0669	0.0035	0.0000	0.123669	NA	0.1585	NA	5.11	HC3	OLS	7	2954	NA	0.0721	0.0508	0.0903	discard	drop married on trimmed: clean diagnostics but CV-MSE +3.2% (married has real signal)
+faff800	5	1	1	1	1	1	0.0569	0.0033	0.0000	0.107336	NA	0.0539	NA	5.68	HC3	OLS	8	2857	NA	0.0721	0.0508	0.0903	keep	2.5% trim: CV-MSE 0.1073 best yet (-21% vs baseline). Caveat: educ drifts to 0.057 (lower edge of multiverse band)
