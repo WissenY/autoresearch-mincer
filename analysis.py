@@ -60,6 +60,9 @@ df = load_card_data()
 
 controls = ["black", "south", "smsa", "married"]
 sample = df.dropna(subset=["lwage", "educ", "exper"] + controls).copy()
+# Trim top and bottom 1% of lwage to limit influence of wage-outliers
+lo, hi = sample["lwage"].quantile(0.01), sample["lwage"].quantile(0.99)
+sample = sample[(sample["lwage"] >= lo) & (sample["lwage"] <= hi)].copy()
 # Center experience before squaring — removes the mechanical near-collinearity
 # between `exper` and `exper²` that otherwise inflates VIF without economic
 # meaning (Wooldridge 2019, ch. 6.2).
