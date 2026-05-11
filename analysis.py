@@ -59,8 +59,10 @@ df = load_card_data()
 # demographic controls, on the full sample.
 
 controls = ["black", "south", "smsa", "married"]
-sample = df.dropna(subset=["lwage", "educ", "exper"] + controls).copy()
-# Trim top and bottom 1% of lwage to limit influence of wage-outliers
+sample = df.dropna(subset=["lwage", "educ", "exper", "momdad14"] + controls).copy()
+# Restrict to subjects raised by both parents to age 14 (homogeneous family structure)
+sample = sample[sample["momdad14"] == 1].copy()
+# Then trim top and bottom 1% of lwage to limit outlier influence
 lo, hi = sample["lwage"].quantile(0.01), sample["lwage"].quantile(0.99)
 sample = sample[(sample["lwage"] >= lo) & (sample["lwage"] <= hi)].copy()
 # Center experience before squaring — removes the mechanical near-collinearity
