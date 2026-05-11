@@ -5,3 +5,4 @@ baseline	5	1	1	1	1	1	0.0715	0.0036	0.0000	0.135772	NA	0.0055	0.9047	5.69	HC3	OLS
 aed1ddb	4	1	1	1	0	1	0.0575	0.0056	0.0000	0.132325	NA	0.0095	0.2234	69.14	HC3	OLS	10	2039	1712.97	0.0721	0.0508	0.0903	discard	add IQ+KWW: ability bias drops educ to 0.058 (Griliches), CV-MSE 0.132 best yet, but VIF=69 (IQ-KWW collinearity)
 af4df6a	4	1	1	1	0	1	0.0676	0.0049	0.0000	0.132822	NA	0.0024	0.5453	52.26	HC3	OLS	9	2060	NA	0.0721	0.0508	0.0903	discard	add IQ only: educ=0.068, CV-MSE 0.133, but VIF=52 (IQ correlates with demographics in non-missing-IQ subsample)
 c62dfcd	4	1	0	1	1	1	0.0740	0.0036	0.0000	0.140411	NA	0.3688	0.8956	5.13	HC3	OLS	7	3010	NA	0.0721	0.0508	0.0903	discard	drop married: clean diagnostics (BP=0.37, VIF=5.1) but CV-MSE 0.140 vs best 0.136 (3.4% worse)
+9020b39	5	1	1	1	1	1	0.0647	0.0035	0.0000	0.119809	NA	0.0083	0.4936	5.68	HC3	OLS	8	2947	NA	0.0721	0.0508	0.0903	keep	trim top/bottom 1% lwage: CV-MSE 0.1198 (-12% vs baseline), all dimensions 5/5, new running best
