@@ -1,43 +1,43 @@
-# Autoresearch-Mincer: LLM Agent 自主实证研究工作流
+# Autoresearch-Mincer: LLM Agent Autonomous Empirical Research Workflow
 
-> **课程**: DOTE 6635 AI for Business Research — Problem Set 9  
-> **范式**: 仿照 Karpathy [autoresearch](https://github.com/karpathy/autoresearch) 的"程序即研究"思想，把人类的角色从"做研究"切换到"编写研究流程"。  
-> **数据**: Card (1995) NLSYM extract（3010 obs，1976 wages，含 `nearc4` IV）。  
-> **目标**: 让 Agent 在真实数据 + 真实识别问题上做规格搜索。
+> **Course**: DOTE 6635 AI for Business Research — Problem Set 9  
+> **Paradigm**: Adapts Karpathy's [autoresearch](https://github.com/karpathy/autoresearch) "program as research" philosophy — shifting the human role from *doing* research to *programming* the research process.  
+> **Data**: Card (1995) NLSYM extract (3,010 obs, 1976 wages, with `nearc4` IV).  
+> **Goal**: Let an LLM agent conduct specification search on real data with a real identification problem.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
-## 项目架构
+## Project Architecture
 
 ```
 autoresearch-mincer/
 ├── data/
-│   └── card.csv              # Card 1995 NLSYM, 3010 obs
-├── prepare.py                # 只读基础设施（评估 + 诊断 + 多元宇宙）
-├── analysis.py               # Agent 唯一可改的文件（规格定义）
-├── program.md                # Agent 指令文件（人类编写）
-├── results.tsv               # 实验日志
+│   └── card.csv              # Card 1995 NLSYM, 3,010 obs
+├── prepare.py                # Read-only infrastructure (evaluation + diagnostics + multiverse)
+├── analysis.py               # Agent-editable file (specification definition)
+├── program.md                # Agent instruction file (human-written)
+├── results.tsv               # Experiment log
 ├── logs/
-│   └── spec_curve.csv        # 当前 multiverse 系数分布
+│   └── spec_curve.csv        # Current multiverse coefficient distribution
 └── .gitignore
 ```
 
 ---
 
-## 五维评分（每维 0/1，总分 0–5）
+## Five-Dimensional Scoring (0/1 per dimension, total 0–5)
 
-| # | 维度 | 1 分的条件 |
+| # | Dimension | Condition for 1 point |
 |---|---|---|
-| 1 | **Identification** | IV: first-stage F > 10 (Stock-Yogo)；OLS: educ 系数在 multiverse 区间内 **且** BP rejecting 时使用 robust SE |
-| 2 | **OOS fit** | 5-fold CV-MSE ≤ running best × 1.005 |
-| 3 | **Spec stability** | educ 系数落在 multiverse 中位数 ±25% |
-| 4 | **Diagnostics** | BP 拒 → 用 HC SE；RESET 不拒；max VIF < 15 |
+| 1 | **Identification** | IV: first-stage F > 10 (Stock-Yogo); OLS: educ coefficient within multiverse range **and** robust SE used when BP rejects |
+| 2 | **OOS Fit** | 5-fold CV-MSE ≤ running best × 1.005 |
+| 3 | **Spec Stability** | educ coefficient within multiverse median ±25% |
+| 4 | **Diagnostics** | BP rejection → HC SE applied; RESET not rejected; max VIF < 15 |
 | 5 | **Parsimony** | n_params ≤ max(6, n_obs/30) |
 
-**Keep / Discard 规则**：
+**Keep / Discard Rule**:
 
 ```
 KEEP  iff  spec_score ≥ previous_best
@@ -48,71 +48,71 @@ DISCARD otherwise
 
 ---
 
-## 快速开始
+## Quick Start
 
 ```bash
-# 1) 数据已包含在仓库中（data/card.csv）
-# 2) 跑 baseline
+# 1) Data is bundled in the repo (data/card.csv)
+# 2) Run baseline
 python analysis.py
 
-# 3) 让 Agent 接管
-# 把仓库目录交给 Claude Code / Codex / Cursor，提示词：
-#   "请阅读 program.md 并启动实验循环。第一步先跑 baseline，触发 Checkpoint 1。"
+# 3) Hand over to the agent
+# Point Claude Code / Codex / Cursor at this repo and prompt:
+#   "Read program.md and kick off the experiment loop. Run baseline first, then trigger Checkpoint 1."
 ```
 
 ---
 
-## Baseline 结果（已记录在 `results.tsv` 第一行）
+## Baseline Results (recorded in `results.tsv` row 1)
 
-| 字段 | 值 |
+| Field | Value |
 |---|---|
 | Estimator | OLS, HC3 |
-| Sample | 3003 obs（drop missing on `lwage, educ, exper, black, south, smsa, married`） |
+| Sample | 3,003 obs (drop missing on `lwage, educ, exper, black, south, smsa, married`) |
 | Specification | `lwage ~ educ + (exper - mean) + (exper - mean)² + black + south + smsa + married` |
-| **educ 系数** | **0.0715** (SE = 0.0036, p ≈ 0) |
+| **educ coefficient** | **0.0715** (SE = 0.0036, p ≈ 0) |
 | CV-MSE (5-fold) | 0.13577 |
 | BIC | 2575.9 |
-| Multiverse median | 0.0721（5/95 分位 = 0.0508 / 0.0903） |
-| BP p | 0.0055 (异方差 → 已用 HC3) |
-| RESET p | 0.9047 (无设定误差) |
-| Max VIF | 5.69（已 center exper） |
+| Multiverse median | 0.0721 (5th/95th percentile = 0.0508 / 0.0903) |
+| BP p | 0.0055 (heteroskedasticity → HC3 applied) |
+| RESET p | 0.9047 (no specification error) |
+| Max VIF | 5.69 (exper centered) |
 | **spec_score** | **5/5** |
 
-IV 路径（已 smoke-tested）：替换为 `IV2SLS` with `nearc4` →
-- First-stage F = 15.75（强工具）
-- IV educ 系数 = 0.1249（与 Card 1995 报告 ~13% 一致）
+IV path (smoke-tested): switch to `IV2SLS` with `nearc4` →
+- First-stage F = 15.75 (strong instrument)
+- IV educ coefficient = 0.1249 (consistent with Card 1995 ~13%)
 
 ---
 
-## 关键设计决策
+## Key Design Decisions
 
-### 1. 为什么 baseline 是 OLS 而不是 IV
+### 1. Why OLS as baseline instead of IV
 
-OLS baseline 建立 multiverse 的"地面"。Agent 在迭代中**应当**主动尝试 IV——这就是 identification 维度奖励的方向。
+OLS baseline establishes the multiverse "floor." The agent **should** try IV in subsequent iterations — that's what the identification dimension rewards. Making IV the baseline would penalize OLS unfairly (IV first-stage F is undefined for OLS).
 
-### 2. 为什么删除"educ 显著为正"作为奖励
+### 2. Why "educ significantly positive" was removed as a reward
 
-奖励"显著为正"等于把 specification mining 写进 reward function。Card 1995 的核心贡献恰恰是发现 IV > OLS（OLS 对 educ 的估计被 ability bias 向下偏）。让数据说话，不让奖励函数说话。
+Rewarding "significantly positive" bakes specification mining directly into the reward function. Card's (1995) central finding is precisely that IV > OLS — OLS estimates of the return to education are biased *downward* by unobserved ability. Let the data speak; don't let the reward function speak for it.
 
-### 3. 为什么 `results.tsv` 入 git
+### 3. Why `results.tsv` is tracked in git
 
-实验历史是不可重建的资产——version-controlling 实验日志是复现性的基本要求。
+Experiment history is a non-reconstructible asset — the same code run again may produce different results due to dependency updates. Version-controlling the experiment log is a foundational requirement of reproducibility.
 
-### 4. 为什么 multiverse 在 `prepare.py` 内固定
+### 4. Why the multiverse is fixed in `prepare.py`
 
-如果让 Agent 自己定义 multiverse，它会通过收缩 multiverse 范围来让自己的 spec 永远"稳定"。放在只读的 `prepare.py` 里 = Agent 不能 game。
+If the agent defined its own multiverse, it could shrink the multiverse range to make its specification appear "stable" by construction. Fixing the multiverse in read-only `prepare.py` prevents the agent from gaming the stability metric.
 
 ---
 
-## 文献锚定
+## Literature
 
 - **Mincer (1974)** — *Schooling, Experience, and Earnings*
 - **Card (1995, 1999, 2001)** — NLSYM with `nearc4` IV
-- **Heckman, Lochner & Todd (2006)** — 现代返回率估计的方法论评述
+- **Heckman, Lochner & Todd (2006)** — Modern returns-to-education estimation survey
 - **Angrist & Pischke (2010)** — *The Credibility Revolution*
 - **Simonsohn, Simmons & Nelson (2020)** — Specification curve analysis
 - **Romano & Wolf (2005)** — Step-down family-wise p-value control
-- **Wooldridge (2019, ch. 6.2)** — 多项式 centering 与 VIF
+- **Wooldridge (2019, ch. 6.2)** — Polynomial centering and VIF
 
 ---
 
